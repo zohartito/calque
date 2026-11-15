@@ -1,0 +1,27 @@
+[project]
+name = "calque"
+version = "0.1.0"
+description = "Turn scanned architecture drawings into scaled, layered, snappable vector files (DXF/SVG) for CAD modeling"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = [
+    "opencv-contrib-python-headless>=4.9",
+    "ezdxf>=1.2",
+    "svgwrite>=1.4",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[project.scripts]
+calque = "calque.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

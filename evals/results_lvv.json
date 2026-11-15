@@ -1,0 +1,19 @@
+{
+  "n_outer_vertices": 16,
+  "n_arc_vertices": 29,
+  "n_heavy_polylines": 101,
+  "outer_median_m": 0.619,
+  "outer_p90_m": 0.917,
+  "outer_coverage_at_1.5m": 1.0,
+  "arc_median_offset_m": 3.815,
+  "refinement": {
+    "scale": 1.0339,
+    "rotation_deg": 0.45
+  },
+  "note": "outer = survey vs drawn roofline after bounded best-fit (refinement must stay near identity); arc offset = terrace rim vs roof-cut arc (real, different edges)",
+  "calibration": {
+    "scale_m_per_px": 0.095,
+    "rotation_deg": 2.7
+  },
+  "pass": true
+}
