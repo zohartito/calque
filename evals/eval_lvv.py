@@ -140,8 +140,8 @@ def main(argv=None) -> int:
         "arc_median_offset_m": round(float(np.median(d_arc)), 3),
         "refinement": {"scale": round(total_scale, 4),
                        "rotation_deg": round(total_rot_deg, 3)},
-        "note": "outer = survey vs drawn roofline after bounded best-fit "
-                "(refinement must stay near identity); arc offset = terrace "
+        "note": "outer = survey vs drawn roofline after three best-fit iterations "
+                "(correction magnitude is not gated); arc offset = terrace "
                 "rim vs roof-cut arc (real, different edges)",
         "calibration": {"scale_m_per_px": round(t.scale, 5),
                         "rotation_deg": round(t.rotation_deg, 2)},

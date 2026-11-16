@@ -8,12 +8,13 @@ vectorization, refinement and export are also available as Python functions.
 
 ## Install
 
-From this source folder, with Python 3.11 or newer:
+From this source folder, use Python 3.11 for the reproducible setup:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install '.[test]'
+python -m pip install --require-hashes --only-binary=:all: -r requirements.lock
+python -m pip install --no-build-isolation --no-deps .
 calque --help
 calque trace --help
 ```
@@ -24,6 +25,24 @@ svgwrite. The `test` extra adds pytest. This copy was tested on macOS with
 Python 3.11; Windows, Linux and other Python versions were not tested locally.
 The GitHub test workflow is configured for Python 3.11 on Linux but has not
 been run for this copy.
+
+`requirements.lock` pins and hashes the runtime, test and build dependencies,
+including their transitive dependencies. Install it first; disabling build
+isolation and dependency resolution for the local package prevents a second,
+unlocked dependency download. The wheel-only install fails if a compatible
+locked wheel is unavailable. The package still declares Python 3.11 or newer;
+other Python versions need separate validation.
+
+To refresh the lock with an installed `uv`, keep `requirements-build.in` aligned
+with `build-system.requires` in `pyproject.toml`, then run:
+
+```bash
+uv pip compile pyproject.toml requirements-build.in --extra test --universal \
+  --python-version 3.11 --generate-hashes --no-annotate -o requirements.lock
+```
+
+Review the version/hash changes and rerun the tests in a fresh locked environment
+before accepting an update.
 
 ## Worked example
 
@@ -43,6 +62,11 @@ uses millimeters, translates the drawing to its bounds, and uses SVG's Y-down
 coordinates. These are full-size dimensions, not a paper-scale sheet. The PNG
 preview uses the original image dimensions and omits region fills and shading.
 Create output directories before running the CLI.
+Output paths must be distinct and cannot alias the source image or loaded
+calibration, including through symlinks or hard links. New output names differing
+only in case or Unicode normalization count as duplicates when the destination
+filesystem treats them as the same name. Existing output files require
+`--overwrite`; that flag never permits input aliases or duplicate outputs.
 
 If you know pixel-to-world correspondences instead, repeat `--anchor` at least
 twice. This example maps pixels to meters at 0.05 m/px:
@@ -75,6 +99,7 @@ OpenCV can decode; PDF input is not implemented.
 | `--dxf FILE` | Write layered DXF in meters. |
 | `--svg FILE` | Write grouped SVG in millimeters. |
 | `--preview FILE` | Write a line-only PNG preview. |
+| `--overwrite` | Allow replacing existing output files; inputs and duplicate output paths remain protected. |
 | `--crop x0,y0,x1,y1` | Trace this pixel rectangle; output retains full-image coordinates. |
 | `--dark-max INT` | Heavy stroke gray threshold; default 110. |
 | `--light-max INT` | Maximum gray value for pale strokes; default 190. |
@@ -104,9 +129,10 @@ A dark text stroke can become heavy linework just as a wall can.
 | Region layer plus `_FILL` | Part of the corresponding region group | Solid DXF hatches for region fills. |
 
 Absent features need not produce entities. Lines are polylines; pot symbols are
-ellipses when detected. Styled exports carry estimated stroke weights, tones,
-region colors and holes. The DXF and SVG are editable geometry, not a building
-model with wall or room objects.
+ellipses when detected. Styled exports carry estimated stroke weights, region
+fill colors and holes. SVG also preserves measured grayscale stroke tones;
+DXF strokes use their layer colors rather than measured tones. The DXF and SVG
+are editable geometry, not a building model with wall or room objects.
 
 ## Tests and limits
 

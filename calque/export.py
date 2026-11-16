@@ -2,6 +2,7 @@
 plus a styled raster preview that mimics the source drawing's look."""
 from __future__ import annotations
 
+from math import ceil
 from pathlib import Path
 
 import cv2
@@ -183,10 +184,26 @@ def to_svg(layers: dict[str, list[np.ndarray]], transform: Transform,
         raise ValueError("nothing to export")
     xs = [p[0] for p in all_pts]; ys = [p[1] for p in all_pts]
     x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-    w_mm, h_mm = (x1 - x0) * 1000, (y1 - y0) * 1000
     mm_per_px = transform.scale * 1000 if hasattr(transform, "scale") else 1.0
+    # Include caps and the default SVG miter limit (4) for joined strokes.
+    # Keep the existing point origin; expand the viewport around it instead.
+    padding = 0.01
+    for name, polys in layers.items():
+        if style is not None and name in SHADE_LAYERS:
+            continue
+        widths = (style or {}).get("width", {}).get(name, [])
+        for i, poly in enumerate(polys):
+            if style is None:
+                width = 0.35
+            else:
+                default = 1.5 if name in LINE_LAYERS else 1.0
+                width = round((widths[i] if i < len(widths) else default) * mm_per_px, 2)
+            padding = max(padding, width * (2.0 if len(poly) > 2 else 0.5))
+    padding = ceil(padding * 100) / 100
+    w_mm = ceil(((x1 - x0) * 1000 + 2 * padding) * 10) / 10
+    h_mm = ceil(((y1 - y0) * 1000 + 2 * padding) * 10) / 10
     dwg = svgwrite.Drawing(str(path), size=(f"{w_mm:.1f}mm", f"{h_mm:.1f}mm"),
-                           viewBox=f"0 0 {w_mm:.1f} {h_mm:.1f}")
+                           viewBox=f"{-padding:.2f} {-padding:.2f} {w_mm:.1f} {h_mm:.1f}")
 
     def mm(poly):
         return [(round((X - x0) * 1000, 2), round((y1 - Y) * 1000, 2))
