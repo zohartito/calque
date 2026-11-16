@@ -104,9 +104,10 @@ A dark text stroke can become heavy linework just as a wall can.
 | Region layer plus `_FILL` | Part of the corresponding region group | Solid DXF hatches for region fills. |
 
 Absent features need not produce entities. Lines are polylines; pot symbols are
-ellipses when detected. Styled exports carry estimated stroke weights, tones,
-region colors and holes. The DXF and SVG are editable geometry, not a building
-model with wall or room objects.
+ellipses when detected. Styled exports carry estimated stroke weights, region
+fill colors and holes. SVG also preserves measured grayscale stroke tones;
+DXF strokes use their layer colors rather than measured tones. The DXF and SVG
+are editable geometry, not a building model with wall or room objects.
 
 ## Tests and limits
 
