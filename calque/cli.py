@@ -52,8 +52,31 @@ def main(argv=None) -> int:
                     help="also extract posterized soft-shading fill regions")
     tr.add_argument("--preview", help="write a clean line-drawing preview PNG here")
     tr.add_argument("--save-calib", help="write calibration JSON here")
+    tr.add_argument("--overwrite", action="store_true",
+                    help="allow replacing existing outputs (never inputs or duplicate outputs)")
 
     args = ap.parse_args(argv)
+
+    inputs = [Path(args.image)] + ([Path(args.calib)] if args.calib else [])
+    outputs = [(name, Path(value)) for name in ("save_calib", "dxf", "svg", "preview")
+               if (value := getattr(args, name))]
+
+    def aliases(a, b):
+        return a.resolve() == b.resolve() or (a.exists() and b.exists() and a.samefile(b))
+
+    # Preflight every destination before loading, tracing, or writing any file.
+    try:
+        for i, (name, path) in enumerate(outputs):
+            option = "--" + name.replace("_", "-")
+            if any(aliases(path, source) for source in inputs):
+                tr.error(f"{option} aliases input: {path}")
+            if any(aliases(path, other) for _, other in outputs[:i]):
+                tr.error(f"duplicate output path for {option}: {path}")
+        for name, path in outputs:
+            if (path.exists() or path.is_symlink()) and not args.overwrite:
+                tr.error(f"output already exists: {path}; use --overwrite to replace it")
+    except (OSError, RuntimeError) as exc:
+        tr.error(f"cannot check output paths: {exc}")
 
     if args.calib:
         t = calibrate.Transform.load(args.calib)

@@ -43,6 +43,9 @@ uses millimeters, translates the drawing to its bounds, and uses SVG's Y-down
 coordinates. These are full-size dimensions, not a paper-scale sheet. The PNG
 preview uses the original image dimensions and omits region fills and shading.
 Create output directories before running the CLI.
+Output paths must be distinct and cannot alias the source image or loaded
+calibration, including through symlinks or hard links. Existing output files
+require `--overwrite`; that flag never permits input aliases or duplicate outputs.
 
 If you know pixel-to-world correspondences instead, repeat `--anchor` at least
 twice. This example maps pixels to meters at 0.05 m/px:
@@ -75,6 +78,7 @@ OpenCV can decode; PDF input is not implemented.
 | `--dxf FILE` | Write layered DXF in meters. |
 | `--svg FILE` | Write grouped SVG in millimeters. |
 | `--preview FILE` | Write a line-only PNG preview. |
+| `--overwrite` | Allow replacing existing output files; inputs and duplicate output paths remain protected. |
 | `--crop x0,y0,x1,y1` | Trace this pixel rectangle; output retains full-image coordinates. |
 | `--dark-max INT` | Heavy stroke gray threshold; default 110. |
 | `--light-max INT` | Maximum gray value for pale strokes; default 190. |

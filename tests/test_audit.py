@@ -1,4 +1,5 @@
 """Regressions for the confirmed public-repository audit findings."""
+from itertools import combinations
 from pathlib import Path
 import subprocess
 import sys
@@ -92,3 +93,82 @@ def test_cal_02_horizontal_raster_exports_positive_svg(wall, tmp_path):
     assert result.returncode == 0, result.stderr
     root = ET.parse(svg).getroot()
     assert all(float(v) > 0 for v in root.attrib["viewBox"].split()[2:])
+
+
+OUTPUTS = ("--save-calib", "--dxf", "--svg", "--preview")
+
+
+@pytest.mark.parametrize("option", OUTPUTS)
+@pytest.mark.parametrize("alias_kind", ["direct", "symlink", "hardlink"])
+def test_cal_05_rejects_source_aliases(wall, tmp_path, option, alias_kind):
+    original = wall.read_bytes()
+    target = wall
+    if alias_kind != "direct":
+        target = tmp_path / "alias.png"
+        if alias_kind == "symlink":
+            target.symlink_to(wall)
+        else:
+            target.hardlink_to(wall)
+    result = run_trace(wall, option, target)
+    assert result.returncode == 2
+    assert "aliases input" in result.stderr
+    assert wall.read_bytes() == original
+
+
+@pytest.mark.parametrize("first,second", list(combinations(OUTPUTS, 2)))
+def test_cal_05_rejects_duplicate_outputs(wall, tmp_path, first, second):
+    target = tmp_path / "shared.png"
+    result = run_trace(wall, first, target, second, target)
+    assert result.returncode == 2
+    assert "duplicate output" in result.stderr
+    assert not target.exists()
+
+
+@pytest.mark.parametrize("alias_kind", ["symlink", "hardlink"])
+def test_cal_05_overwrite_cannot_allow_linked_duplicates(wall, tmp_path, alias_kind):
+    target = tmp_path / "shared.png"
+    target.write_bytes(b"keep this output")
+    alias = tmp_path / "alias.png"
+    if alias_kind == "symlink":
+        alias.symlink_to(target)
+    else:
+        alias.hardlink_to(target)
+    result = run_trace(wall, "--svg", target, "--preview", alias, "--overwrite")
+    assert result.returncode == 2
+    assert "duplicate output" in result.stderr
+    assert target.read_bytes() == alias.read_bytes() == b"keep this output"
+
+
+@pytest.mark.parametrize("option", OUTPUTS)
+@pytest.mark.parametrize("overwrite", [False, True])
+def test_cal_05_existing_output_requires_consent(wall, tmp_path, option, overwrite):
+    target = tmp_path / "existing.png"
+    target.write_bytes(b"keep this output")
+    result = run_trace(wall, option, target, *(["--overwrite"] if overwrite else []))
+    if overwrite:
+        assert result.returncode == 0, result.stderr
+        assert target.read_bytes() != b"keep this output"
+    else:
+        assert result.returncode == 2
+        assert "--overwrite" in result.stderr
+        assert target.read_bytes() == b"keep this output"
+
+
+def test_cal_05_overwrite_cannot_allow_input_alias_or_partial_writes(wall, tmp_path):
+    original = wall.read_bytes()
+    calibration = tmp_path / "new.json"
+    result = run_trace(wall, "--save-calib", calibration, "--preview", wall, "--overwrite")
+    assert result.returncode == 2
+    assert "aliases input" in result.stderr
+    assert wall.read_bytes() == original
+    assert not calibration.exists()
+
+
+def test_cal_05_protects_loaded_calibration(wall, tmp_path):
+    calibration = tmp_path / "input.json"
+    from_scale(0.05).save(calibration)
+    original = calibration.read_bytes()
+    result = run_trace(wall, "--calib", calibration, "--svg", calibration)
+    assert result.returncode == 2
+    assert "aliases input" in result.stderr
+    assert calibration.read_bytes() == original
