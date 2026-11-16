@@ -61,3 +61,34 @@ def test_cal_03_preview_write_failure_is_an_error(wall, tmp_path, destination):
     assert "Traceback" not in result.stderr
     assert "preview ->" not in result.stdout
     assert not preview.exists()
+
+
+@pytest.mark.parametrize("vertical", [False, True])
+@pytest.mark.parametrize("styled", [False, True])
+def test_cal_02_svg_bounds_include_collinear_strokes(tmp_path, vertical, styled):
+    points = np.array([[20., 50.], [220., 50.]])
+    if vertical:
+        points = points[:, ::-1]
+    style = {"width": {"heavy": [5.]}, "tone": {"heavy": [0.]}} if styled else None
+    svg = tmp_path / "wall.svg"
+    assert to_svg({"heavy": [points]}, from_scale(0.05), svg, style) == 1
+    root = ET.parse(svg).getroot()
+    x, y, width, height = map(float, root.attrib["viewBox"].split())
+    assert width > 0 and height > 0
+    assert float(root.attrib["width"][:-2]) == width
+    assert float(root.attrib["height"][:-2]) == height
+    line = root.find(".//{*}polyline")
+    actual = np.array([list(map(float, pair.split(",")))
+                       for pair in line.attrib["points"].split()])
+    half_stroke = (250. if styled else 0.35) / 2
+    assert np.all(actual.min(axis=0) - half_stroke >= [x, y])
+    assert np.all(actual.max(axis=0) + half_stroke <= [x + width, y + height])
+    assert np.linalg.norm(actual[1] - actual[0]) == pytest.approx(10000.)
+
+
+def test_cal_02_horizontal_raster_exports_positive_svg(wall, tmp_path):
+    svg = tmp_path / "wall.svg"
+    result = run_trace(wall, "--svg", svg)
+    assert result.returncode == 0, result.stderr
+    root = ET.parse(svg).getroot()
+    assert all(float(v) > 0 for v in root.attrib["viewBox"].split()[2:])
