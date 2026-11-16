@@ -8,12 +8,13 @@ vectorization, refinement and export are also available as Python functions.
 
 ## Install
 
-From this source folder, with Python 3.11 or newer:
+From this source folder, use Python 3.11 for the reproducible setup:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install '.[test]'
+python -m pip install --require-hashes --only-binary=:all: -r requirements.lock
+python -m pip install --no-build-isolation --no-deps .
 calque --help
 calque trace --help
 ```
@@ -24,6 +25,24 @@ svgwrite. The `test` extra adds pytest. This copy was tested on macOS with
 Python 3.11; Windows, Linux and other Python versions were not tested locally.
 The GitHub test workflow is configured for Python 3.11 on Linux but has not
 been run for this copy.
+
+`requirements.lock` pins and hashes the runtime, test and build dependencies,
+including their transitive dependencies. Install it first; disabling build
+isolation and dependency resolution for the local package prevents a second,
+unlocked dependency download. The wheel-only install fails if a compatible
+locked wheel is unavailable. The package still declares Python 3.11 or newer;
+other Python versions need separate validation.
+
+To refresh the lock with an installed `uv`, keep `requirements-build.in` aligned
+with `build-system.requires` in `pyproject.toml`, then run:
+
+```bash
+uv pip compile pyproject.toml requirements-build.in --extra test --universal \
+  --python-version 3.11 --generate-hashes --no-annotate -o requirements.lock
+```
+
+Review the version/hash changes and rerun the tests in a fresh locked environment
+before accepting an update.
 
 ## Worked example
 
