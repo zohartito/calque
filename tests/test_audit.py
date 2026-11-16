@@ -1,5 +1,6 @@
 """Regressions for the confirmed public-repository audit findings."""
 from itertools import combinations
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -13,6 +14,7 @@ import pytest
 from calque.calibrate import from_scale
 from calque.export import to_dxf, to_svg
 from calque.vectorize import VectorizeParams, extract
+from synthetic_plan import make_plan
 
 
 @pytest.fixture
@@ -172,3 +174,24 @@ def test_cal_05_protects_loaded_calibration(wall, tmp_path):
     assert result.returncode == 2
     assert "aliases input" in result.stderr
     assert calibration.read_bytes() == original
+
+
+def test_cal_06_evaluation_note_discloses_ungated_fit(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    image = make_plan(tmp_path / "plan.png")
+    registration = tmp_path / "registration.json"
+    registration.write_text(json.dumps({"theta_deg": 0, "scale": 0.05,
+                                       "crater_px": [0, 0], "crater_m": [56.64, 31.96]}))
+    geometry = tmp_path / "geometry.json"
+    geometry.write_text(json.dumps({"osm": [{"id": 1064543187, "pts": [
+        [59.64, 28.96], [74.64, 28.96], [74.64, 18.96], [59.64, 18.96],
+        [77.64, 28.96], [83.64, 22.96]]}]}))
+    output = tmp_path / "results.json"
+    result = subprocess.run([sys.executable, str(root / "evals/eval_lvv.py"),
+                             str(image), str(geometry), str(registration), "--output", str(output)],
+                            cwd=tmp_path, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    note = json.loads(output.read_text())["note"]
+    assert "correction magnitude is not gated" in note
+    assert "must stay near identity" not in note
+    assert json.loads((root / "evals/results_lvv.json").read_text())["note"] == note

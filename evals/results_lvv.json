@@ -10,7 +10,7 @@
     "scale": 1.0339,
     "rotation_deg": 0.45
   },
-  "note": "outer = survey vs drawn roofline after bounded best-fit (refinement must stay near identity); arc offset = terrace rim vs roof-cut arc (real, different edges)",
+  "note": "outer = survey vs drawn roofline after three best-fit iterations (correction magnitude is not gated); arc offset = terrace rim vs roof-cut arc (real, different edges)",
   "calibration": {
     "scale_m_per_px": 0.095,
     "rotation_deg": 2.7
