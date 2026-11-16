@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+import unicodedata
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 
 from . import calibrate
 from .export import to_dxf, to_svg
@@ -68,13 +69,16 @@ def main(argv=None) -> int:
             return True
         if a.exists() and b.exists():
             return a.samefile(b)
-        if a.name.casefold() != b.name.casefold() or not a.parent.samefile(b.parent):
+        if (unicodedata.normalize("NFD", a.name.casefold()) !=
+                unicodedata.normalize("NFD", b.name.casefold()) or
+                not a.parent.samefile(b.parent)):
             return False
-        # New files have no inode to compare. Probe the destination filesystem,
-        # since case sensitivity can vary between volumes on the same platform.
-        with NamedTemporaryFile(prefix=".calque-case-", dir=a.parent) as probe:
-            path = Path(probe.name)
-            alternate = path.with_name(path.name.upper())
+        # New files have no inode to compare. Probe the exact names on the
+        # destination filesystem, whose case/Unicode rules can vary by volume.
+        with TemporaryDirectory(prefix=".calque-alias-", dir=a.parent) as probe:
+            path = Path(probe) / a.name
+            path.touch()
+            alternate = path.with_name(b.name)
             return alternate.exists() and alternate.samefile(path)
 
     # Preflight every destination before loading, tracing, or writing any output.

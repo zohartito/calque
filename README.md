@@ -64,9 +64,9 @@ preview uses the original image dimensions and omits region fills and shading.
 Create output directories before running the CLI.
 Output paths must be distinct and cannot alias the source image or loaded
 calibration, including through symlinks or hard links. New output names differing
-only in case also count as duplicates on case-insensitive filesystems. Existing
-output files require `--overwrite`; that flag never permits input aliases or
-duplicate outputs.
+only in case or Unicode normalization count as duplicates when the destination
+filesystem treats them as the same name. Existing output files require
+`--overwrite`; that flag never permits input aliases or duplicate outputs.
 
 If you know pixel-to-world correspondences instead, repeat `--anchor` at least
 twice. This example maps pixels to meters at 0.05 m/px:

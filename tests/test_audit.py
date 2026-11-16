@@ -166,6 +166,53 @@ def test_cal_05_case_variant_outputs_in_distinct_directories(wall, tmp_path):
     assert not calibration.samefile(preview)
 
 
+@pytest.mark.parametrize("names", [
+    pytest.param(("caf\u00e9.png", "cafe\u0301.png"), id="nfc-nfd"),
+    pytest.param(("cafe\u0301.png", "CAF\u00c9.PNG"), id="nfd-nfc-case"),
+])
+@pytest.mark.parametrize("first,second", list(combinations(OUTPUTS, 2)))
+@pytest.mark.parametrize("overwrite", [False, True])
+@pytest.mark.parametrize("linked_parent", [False, True])
+def test_cal_05_new_unicode_variant_outputs_follow_filesystem(
+        wall, tmp_path, names, first, second, overwrite, linked_parent):
+    original = wall.read_bytes()
+    probe = tmp_path / ("probe-" + names[0])
+    probe.write_bytes(b"filesystem probe")
+    alternate = tmp_path / ("probe-" + names[1])
+    aliases_on_filesystem = alternate.exists() and probe.samefile(alternate)
+    target = tmp_path / names[0]
+    parent = tmp_path
+    if linked_parent:
+        parent = tmp_path / "linked"
+        parent.symlink_to(tmp_path, target_is_directory=True)
+    alias = parent / names[1]
+    before = set(tmp_path.iterdir())
+    assert not target.exists() and not alias.exists()
+    result = run_trace(wall, first, target, second, alias,
+                       *(["--overwrite"] if overwrite else []))
+    if aliases_on_filesystem:
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert "duplicate output" in result.stderr
+        assert set(tmp_path.iterdir()) == before
+    else:
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert target.is_file() and alias.is_file()
+        assert not target.samefile(alias)
+    assert wall.read_bytes() == original
+
+
+def test_cal_05_unicode_variant_outputs_in_distinct_directories(wall, tmp_path):
+    first, second = tmp_path / "first", tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    calibration, preview = first / "caf\u00e9.png", second / "CAFE\u0301.PNG"
+    result = run_trace(wall, "--save-calib", calibration, "--preview", preview)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(calibration.read_text())["a"] == pytest.approx(0.05)
+    assert cv2.imread(str(preview)) is not None
+    assert not calibration.samefile(preview)
+
+
 @pytest.mark.parametrize("alias_kind", ["symlink", "hardlink"])
 def test_cal_05_overwrite_cannot_allow_linked_duplicates(wall, tmp_path, alias_kind):
     target = tmp_path / "shared.png"
