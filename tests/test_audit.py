@@ -1,4 +1,7 @@
 """Regressions for the confirmed public-repository audit findings."""
+from pathlib import Path
+import subprocess
+import sys
 import xml.etree.ElementTree as ET
 
 import cv2
@@ -9,6 +12,21 @@ import pytest
 from calque.calibrate import from_scale
 from calque.export import to_dxf, to_svg
 from calque.vectorize import VectorizeParams, extract
+
+
+@pytest.fixture
+def wall(tmp_path):
+    image = np.full((100, 240, 3), 255, np.uint8)
+    cv2.line(image, (20, 50), (220, 50), (0, 0, 0), 5)
+    source = tmp_path / "wall.png"
+    assert cv2.imwrite(str(source), image)
+    return source
+
+
+def run_trace(source, *options):
+    return subprocess.run([str(Path(sys.executable).with_name("calque")),
+                           "trace", str(source), "--scale", "0.05", *map(str, options)],
+                          cwd=source.parent, capture_output=True, text=True)
 
 
 @pytest.mark.parametrize("refine", [True, False])
@@ -32,3 +50,14 @@ def test_cal_01_dense_pale_contours_have_style(tmp_path, refine, crop):
     assert to_dxf(layers, from_scale(0.05), dxf, style=style) > 0
     assert ET.parse(svg).find(".//{*}g[@id='calque-light']/{*}polyline") is not None
     assert ezdxf.readfile(dxf).modelspace().query('LWPOLYLINE[layer=="CALQUE_LIGHT"]')
+
+
+@pytest.mark.parametrize("destination", ["missing/sub/preview.png", "preview.unknown"])
+def test_cal_03_preview_write_failure_is_an_error(wall, tmp_path, destination):
+    preview = tmp_path / destination
+    result = run_trace(wall, "--preview", preview)
+    assert result.returncode != 0
+    assert "cannot write preview" in result.stderr.lower()
+    assert "Traceback" not in result.stderr
+    assert "preview ->" not in result.stdout
+    assert not preview.exists()

@@ -96,7 +96,14 @@ def main(argv=None) -> int:
         import cv2
         from .export import render_line
         bgr = cv2.imread(args.image)
-        cv2.imwrite(args.preview, render_line(layers, style, bgr.shape[:2]))
+        preview = render_line(layers, style, bgr.shape[:2])
+        try:
+            written = cv2.imwrite(args.preview, preview)
+        except cv2.error:
+            written = False
+        if not written:
+            print(f"cannot write preview: {args.preview}", file=sys.stderr)
+            return 2
         print(f"preview -> {args.preview}")
     if not (args.dxf or args.svg):
         print("(no --dxf/--svg given; extraction dry run only)")
