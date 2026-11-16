@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from . import calibrate
 from .export import to_dxf, to_svg
@@ -62,9 +63,21 @@ def main(argv=None) -> int:
                if (value := getattr(args, name))]
 
     def aliases(a, b):
-        return a.resolve() == b.resolve() or (a.exists() and b.exists() and a.samefile(b))
+        a, b = a.resolve(), b.resolve()
+        if a == b:
+            return True
+        if a.exists() and b.exists():
+            return a.samefile(b)
+        if a.name.casefold() != b.name.casefold() or not a.parent.samefile(b.parent):
+            return False
+        # New files have no inode to compare. Probe the destination filesystem,
+        # since case sensitivity can vary between volumes on the same platform.
+        with NamedTemporaryFile(prefix=".calque-case-", dir=a.parent) as probe:
+            path = Path(probe.name)
+            alternate = path.with_name(path.name.upper())
+            return alternate.exists() and alternate.samefile(path)
 
-    # Preflight every destination before loading, tracing, or writing any file.
+    # Preflight every destination before loading, tracing, or writing any output.
     try:
         for i, (name, path) in enumerate(outputs):
             option = "--" + name.replace("_", "-")
