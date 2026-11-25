@@ -439,6 +439,13 @@ def extract(image_path: str, params: VectorizeParams | None = None,
                 if len(poly) >= 3:
                     rings.append(np.vstack([poly, poly[:1]]))
             layers[name] = rings
+            halfwidth = cv2.dilate(cv2.distanceTransform(m, cv2.DIST_L2, 3),
+                                   cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)))
+            max_w = 3.0 if name == "light" else 8.0
+            style["width"][name] = [
+                float(np.clip(2.0 * _sample_along(ring - offset, halfwidth), 1.0, max_w))
+                for ring in rings]
+            style["tone"][name] = [_sample_along(ring - offset, gray) for ring in rings]
             continue
         skeleton_classes.append(name)
 

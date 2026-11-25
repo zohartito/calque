@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+import unicodedata
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from . import calibrate
 from .export import to_dxf, to_svg
@@ -52,8 +54,46 @@ def main(argv=None) -> int:
                     help="also extract posterized soft-shading fill regions")
     tr.add_argument("--preview", help="write a clean line-drawing preview PNG here")
     tr.add_argument("--save-calib", help="write calibration JSON here")
+    tr.add_argument("--overwrite", action="store_true",
+                    help="allow replacing existing outputs (never inputs or duplicate outputs)")
 
     args = ap.parse_args(argv)
+
+    inputs = [Path(args.image)] + ([Path(args.calib)] if args.calib else [])
+    outputs = [(name, Path(value)) for name in ("save_calib", "dxf", "svg", "preview")
+               if (value := getattr(args, name))]
+
+    def aliases(a, b):
+        a, b = a.resolve(), b.resolve()
+        if a == b:
+            return True
+        if a.exists() and b.exists():
+            return a.samefile(b)
+        if (unicodedata.normalize("NFD", a.name.casefold()) !=
+                unicodedata.normalize("NFD", b.name.casefold()) or
+                not a.parent.samefile(b.parent)):
+            return False
+        # New files have no inode to compare. Probe the exact names on the
+        # destination filesystem, whose case/Unicode rules can vary by volume.
+        with TemporaryDirectory(prefix=".calque-alias-", dir=a.parent) as probe:
+            path = Path(probe) / a.name
+            path.touch()
+            alternate = path.with_name(b.name)
+            return alternate.exists() and alternate.samefile(path)
+
+    # Preflight every destination before loading, tracing, or writing any output.
+    try:
+        for i, (name, path) in enumerate(outputs):
+            option = "--" + name.replace("_", "-")
+            if any(aliases(path, source) for source in inputs):
+                tr.error(f"{option} aliases input: {path}")
+            if any(aliases(path, other) for _, other in outputs[:i]):
+                tr.error(f"duplicate output path for {option}: {path}")
+        for name, path in outputs:
+            if (path.exists() or path.is_symlink()) and not args.overwrite:
+                tr.error(f"output already exists: {path}; use --overwrite to replace it")
+    except (OSError, RuntimeError) as exc:
+        tr.error(f"cannot check output paths: {exc}")
 
     if args.calib:
         t = calibrate.Transform.load(args.calib)
@@ -96,7 +136,14 @@ def main(argv=None) -> int:
         import cv2
         from .export import render_line
         bgr = cv2.imread(args.image)
-        cv2.imwrite(args.preview, render_line(layers, style, bgr.shape[:2]))
+        preview = render_line(layers, style, bgr.shape[:2])
+        try:
+            written = cv2.imwrite(args.preview, preview)
+        except cv2.error:
+            written = False
+        if not written:
+            print(f"cannot write preview: {args.preview}", file=sys.stderr)
+            return 2
         print(f"preview -> {args.preview}")
     if not (args.dxf or args.svg):
         print("(no --dxf/--svg given; extraction dry run only)")
